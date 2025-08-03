@@ -72,7 +72,13 @@ private:
                         task = tasks.front();
                         tasks.pop();
                         lock.unlock();
-                        Logger::log(task.message, task.level);
+                        try {
+                            Logger::log(task.message, task.level);
+                        } catch (const std::ios_base::failure& e) {
+                            std::cerr << "ошибка записи в лог: " << e.what() << std::endl;
+                        } catch (const std::exception& e) {
+                            std::cerr << "обожемой! Какая-то ошибка: " << e.what() << std::endl;
+                        }
                         lock.lock();
                     }
                     return;
@@ -90,7 +96,14 @@ private:
                     tasks.pop();
                 }*/
             }
-            Logger::log(task.message, task.level);
+            // Logger::log(task.message, task.level);
+            try {
+                Logger::log(task.message, task.level);
+            } catch (const std::ios_base::failure& e) {
+                std::cerr << "ошибка записи в лог: " << e.what() << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "обожемой! Какая-то ошибка: " << e.what() << std::endl;
+            }
             // записываем в лог (уже без блокировки)
             /*if (!task.message.empty()) {
                 try {
@@ -167,7 +180,7 @@ int main(int argc, char* argv[]) {
         if (input.empty()) {
             continue;
         }        
-        else if (input == "exit") {
+        else if (input == "exit") {        
             break;
         }        
         else if (input == "help") {
@@ -215,9 +228,13 @@ int main(int argc, char* argv[]) {
             }
 
             worker.addTask(task);
-            std::cout << "Сообщение добавлено (уровень = "
-                      << Logger::levelToStringSafe(task.level)
-                      << ")" << std::endl;
+
+            if (task.level < Logger::getCurrentLevel()) {
+                std::cout   << "попытка добавить сообщение (уровень = ";
+            } else {
+                std::cout   << "добавлено сообщение (уровень = ";
+            }
+            std::cout << Logger::levelToStringSafe(task.level) << ")" << std::endl;
         }
         else {
             std::cout << "Неизвестная команда. Напечатай 'help' для обзора команд." << std::endl;
