@@ -147,6 +147,12 @@ std::string trimLeft(const std::string& str) {
     return result;
 }
 
+/*std::string commandNormalizer(const std::string& input) {
+    std::string cmd = input.substr(0, input.find(' '));
+    std::transform(cmd.begin(), cmd.end(), cmd.begin(), ::tolower);
+    return cmd;
+}*/
+
 int main(int argc, char* argv[]) {
 
     if (argc != 3) { 
@@ -168,6 +174,7 @@ int main(int argc, char* argv[]) {
     LogWorker worker;
     std::cout << "Логер инициализирован. Напечатай 'help' для обзора команд.\n";
     
+    // std::string prePreInput;
     std::string preInput;
     std::string input;
     while (true) {
@@ -175,7 +182,10 @@ int main(int argc, char* argv[]) {
 
         // std::getline(std::cin, input);
         std::getline(std::cin, preInput);
+        // std::getline(std::cin, prePreInput);
         input = trimLeft(preInput);
+        // preInput = trimLeft(prePreInput);
+        // input = commandNormalizer(preInput);
 
         if (input.empty()) {
             continue;
