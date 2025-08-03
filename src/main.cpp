@@ -145,32 +145,27 @@ int main(int argc, char* argv[]) {
     std::string input;
     while (true) {
         std::cout << "> ";
-        
+
         // std::getline(std::cin, input);
         std::getline(std::cin, preInput);
-        
         input = trimLeft(preInput);
 
         if (input.empty()) {
             continue;
-        }
-        
-        if (input == "exit") {
+        }        
+        else if (input == "exit") {
             break;
-        }
-        
-        if (input == "help") {
+        }        
+        else if (input == "help") {
             printHelp();
             continue;
         }
-
-        if (input.rfind("getlevel", 0) == 0) {
+        else if (input.rfind("getlevel", 0) == 0) {
             std::cout   << "уровень логирования: " 
                         << Logger::getCurrentLevelString() 
                         << std::endl;
-        }
-        
-        if (input.rfind("setlevel ", 0) == 0) {
+        }        
+        else if (input.rfind("setlevel ", 0) == 0) {
 
             try {
                 std::string levelStr = input.substr(9);
@@ -181,9 +176,8 @@ int main(int argc, char* argv[]) {
                 std::cerr << "ошибка: " << e.what() << std::endl;
             }
             continue;
-        }
-        
-        if (input.rfind("message ", 0) == 0) {
+        }        
+        else if (input.rfind("message ", 0) == 0) {
             std::string rest = input.substr(8);
             size_t spacePos = rest.find(' ');            
 
@@ -213,11 +207,10 @@ int main(int argc, char* argv[]) {
         }
         else {
             std::cout << "Неизвестная команда.\n";
-        }
-        
+        }       
         std::cout << "Напечатай 'help' для обзора команд.\n";
     }
-    
     Logger::shutdown();
+
     return 0;
 }
