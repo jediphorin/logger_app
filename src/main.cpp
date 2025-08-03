@@ -66,8 +66,21 @@ private:
 
                 // блокирует поток, пока нет задачи
                 cv.wait(lock, [this]() { return !tasks.empty() || !running; });
+
+                if (!running) {
+                    while (!tasks.empty()) {
+                        task = tasks.front();
+                        tasks.pop();
+                        lock.unlock();
+                        Logger::log(task.message, task.level);
+                        lock.lock();
+                    }
+                    return;
+                }
+                task = tasks.front();
+                tasks.pop();
                 
-                if (!running && tasks.empty()) {
+                /*if (!running && tasks.empty()) {
                     return;
                 }
                 
@@ -75,16 +88,17 @@ private:
                 if (!tasks.empty()) {
                     task = tasks.front();
                     tasks.pop();
-                }
+                }*/
             }
+            Logger::log(task.message, task.level);
             // записываем в лог (уже без блокировки)
-            if (!task.message.empty()) {
+            /*if (!task.message.empty()) {
                 try {
                     Logger::log(task.message, task.level);
                 } catch (const std::exception& e) {
                     std::cerr << "ошибка логирования: " << e.what() << std::endl;
                 }
-            }
+            }*/
         }
     }
 };
