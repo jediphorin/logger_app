@@ -2,8 +2,8 @@
 #include <stdexcept>
 
 std::ofstream Logger::logFile;
-// LogLevel Logger::currentLevel = LogLevel::INFO;
-LogLevel Logger::currentLevel;
+LogLevel Logger::currentLevel = LogLevel::INFO;
+// LogLevel Logger::currentLevel;
 std::mutex Logger::logMutex;
 
 // инициализация логера
@@ -68,8 +68,9 @@ LogLevel Logger::getCurrentLevel() {
 }
 
 std::string Logger::getCurrentLevelString() {
-    std::lock_guard<std::mutex> lock(logMutex);
-    return getLevelString(currentLevel);
+    // std::lock_guard<std::mutex> lock(logMutex);
+    // return getLevelString(currentLevel);
+    return getLevelString(getCurrentLevel());
 }
 
 // метод, возвращающий строку, соответствующую уровню логгирования
