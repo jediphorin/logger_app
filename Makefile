@@ -19,7 +19,8 @@ all: lib app
 lib: $(BUILD_DIR)/$(TARGET_LIB)
 
 app: $(BUILD_DIR)/$(TARGET_APP)
-#	 rm -rf $(BUILD_DIR)/$(TARGET_LIB)
+#	rm -rf $(BUILD_DIR)/$(TARGET_LIB)
+#	find . -name "*.o" -exec rm -rf {} \;
 
 $(BUILD_DIR)/$(TARGET_LIB): $(OBJECTS_LIB)
 	@mkdir -p $(@D)
