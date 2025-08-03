@@ -2,7 +2,8 @@
 #include <stdexcept>
 
 std::ofstream Logger::logFile;
-LogLevel Logger::currentLevel = LogLevel::INFO;
+// LogLevel Logger::currentLevel = LogLevel::INFO;
+LogLevel Logger::currentLevel;
 std::mutex Logger::logMutex;
 
 // инициализация логера

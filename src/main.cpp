@@ -6,7 +6,7 @@
 #include "logger.h"
 #include <cctype>
 
-// сообщение и уровень логирования для занесения в журнал
+//  структура из сообщения и уровеня логирования для занесения в журнал
 struct LogTask {
     std::string message;
     LogLevel level;
@@ -82,7 +82,7 @@ private:
                 try {
                     Logger::log(task.message, task.level);
                 } catch (const std::exception& e) {
-                    std::cerr << "Ошибка логирования: " << e.what() << std::endl;
+                    std::cerr << "ошибка логирования: " << e.what() << std::endl;
                 }
             }
         }
@@ -102,9 +102,9 @@ LogLevel parseLogLevel(const std::string& levelStr) {
 
 void printHelp() {
     std::cout << "Доступные команды:\n"
-              << "  message [level] - уровень логирования (DEBUG, INFO, WARNING, ERROR)\n"
+              << "  message [LEVEL] - уровень логирования (DEBUG, INFO, WARNING, ERROR)\n"
               << "  getlevel - узнать текущий уровень логирования\n"
-              << "  setlevel LEVEL - изменение уровня логирования\n"
+              << "  setlevel [LEVEL] - изменение уровня логирования\n"
               << "  help - показать эту помощь\n"
               << "  exit - выйти из приложения\n";
 }
@@ -206,9 +206,9 @@ int main(int argc, char* argv[]) {
                       << ")" << std::endl;
         }
         else {
-            std::cout << "Неизвестная команда.\n";
+            std::cout << "Неизвестная команда. Напечатай 'help' для обзора команд." << std::endl;
         }       
-        std::cout << "Напечатай 'help' для обзора команд.\n";
+        // std::cout << "Напечатай 'help' для обзора команд.\n";
     }
     Logger::shutdown();
 
