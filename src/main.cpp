@@ -4,20 +4,30 @@
 #include <condition_variable>
 #include <atomic>
 #include "logger.h"
+#include <cctype>
 
+// сообщение и уровень логирования для занесения в журнал
 struct LogTask {
     std::string message;
     LogLevel level;
 };
 
+// выполняет запись логов в фоновом режиме, пока основная программа продолжает работу
+// принимает сообщения из разных потоков и гарантирует их корректную обработку
+// автоматически запускает и останавливает рабочий поток
 class LogWorker {
 public:
+    // конструктор запускает поток, который выполняет метод process()
     LogWorker() : running(true) {
         workerThread = std::thread(&LogWorker::process, this);
     }
     
+    // деструктор
     ~LogWorker() {
+        // запрос на остановку потока
         running = false;
+
+        // будим поток, если он спит
         cv.notify_one();
         if (workerThread.joinable()) {
             workerThread.join();
@@ -26,39 +36,53 @@ public:
     
     void addTask(const LogTask& task) {
         std::lock_guard<std::mutex> lock(queueMutex);
+
+        // добавление задачи в очередь
         tasks.push(task);
+
+        // будим поток-обработчик
         cv.notify_one();
     }
     
 private:
+    // очередь задач
     std::queue<LogTask> tasks;
+    // защищает очередь от гонки задач
     std::mutex queueMutex;
+    // сигнализирует о новых задачах
     std::condition_variable cv;
+    // фоновый поток-обработчик
     std::thread workerThread;
+    // флаг работы потока
     std::atomic<bool> running;
     
+    // основной цикл обработки
     void process() {
         while (running) {
             LogTask task;
             {
+                // ожидаем задач или остановки
                 std::unique_lock<std::mutex> lock(queueMutex);
+
+                // блокирует поток, пока нет задачи
                 cv.wait(lock, [this]() { return !tasks.empty() || !running; });
                 
                 if (!running && tasks.empty()) {
                     return;
                 }
                 
+                // извлекаем задачу
                 if (!tasks.empty()) {
                     task = tasks.front();
                     tasks.pop();
                 }
             }
-            
+            // записываем в лог (уже без блокировки)
             if (!task.message.empty()) {
                 try {
                     Logger::log(task.message, task.level);
                 } catch (const std::exception& e) {
-                    std::cerr << "Logging error: " << e.what() << std::endl;
+                    std::cerr << "Ошибка логирования: " << e.what() << std::endl;
                 }
             }
         }
@@ -85,6 +109,17 @@ void printHelp() {
               << "  exit - выйти из приложения\n";
 }
 
+std::string trimLeft(const std::string& str) {
+    size_t start = str.find_first_not_of(" \t\n\r\f\v");
+    std::string result;
+    if (start == std::string::npos) {
+        result = "";
+    } else {
+        result = str.substr(start);
+    }
+    return result;
+}
+
 int main(int argc, char* argv[]) {
 
     if (argc != 3) { 
@@ -106,11 +141,16 @@ int main(int argc, char* argv[]) {
     LogWorker worker;
     std::cout << "Логер инициализирован. Напечатай 'help' для обзора команд.\n";
     
+    std::string preInput;
     std::string input;
     while (true) {
         std::cout << "> ";
-        std::getline(std::cin, input);
         
+        // std::getline(std::cin, input);
+        std::getline(std::cin, preInput);
+        
+        input = trimLeft(preInput);
+
         if (input.empty()) {
             continue;
         }
@@ -125,8 +165,9 @@ int main(int argc, char* argv[]) {
         }
 
         if (input.rfind("getlevel", 0) == 0) {
-            std::string currentLevelStr = Logger::getCurrentLevelString();
-            std::cout << "уровень логирования: " << currentLevelStr << std::endl;
+            std::cout   << "уровень логирования: " 
+                        << Logger::getCurrentLevelString() 
+                        << std::endl;
         }
         
         if (input.rfind("setlevel ", 0) == 0) {
@@ -170,8 +211,11 @@ int main(int argc, char* argv[]) {
                       << Logger::levelToStringSafe(task.level)
                       << ")" << std::endl;
         }
+        else {
+            std::cout << "Неизвестная команда.\n";
+        }
         
-        std::cout << "Неизвестная команда. Напечатай 'help' для обзора команд.\n";
+        std::cout << "Напечатай 'help' для обзора команд.\n";
     }
     
     Logger::shutdown();

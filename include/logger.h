@@ -20,7 +20,6 @@ enum class LogLevel {
 
 class Logger {
 public:
-    // static void init(const std::string& filename, LogLevel defaultLevel = LogLevel::INFO);
     static void init(const std::string& filename, LogLevel defaultLevel);
     static void setLogLevel(LogLevel level);
     static void log(const std::string& message, LogLevel level = LogLevel::INFO);
