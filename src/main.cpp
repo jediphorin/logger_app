@@ -1,257 +1,212 @@
+#include <atomic>
+#include <cctype>
+#include <condition_variable>
+#include <queue>
 #include <thread>
 #include <vector>
-#include <queue>
-#include <condition_variable>
-#include <atomic>
+
 #include "logger.h"
-#include <cctype>
 
-//  структура из сообщения и уровеня логирования для занесения в журнал
 struct LogTask {
-    std::string message;
-    LogLevel level;
+  std::string message;
+  LogLevel level;
 };
 
-// выполняет запись логов в фоновом режиме, пока основная программа продолжает работу
-// принимает сообщения из разных потоков и гарантирует их корректную обработку
-// автоматически запускает и останавливает рабочий поток
 class LogWorker {
-public:
-    // конструктор запускает поток, который выполняет метод process()
-    LogWorker() : running(true) {
-        workerThread = std::thread(&LogWorker::process, this);
-    }
-    
-    // деструктор
-    ~LogWorker() {
-        // запрос на остановку потока
-        running = false;
+ public:
+  LogWorker() : running(true) {
+    workerThread = std::thread(&LogWorker::process, this);
+  }
 
-        // будим поток, если он спит
-        cv.notify_one();
-        if (workerThread.joinable()) {
-            workerThread.join();
+  ~LogWorker() {
+    running = false;
+    condition.notify_one();
+    if (workerThread.joinable()) {
+      workerThread.join();
+    }
+  }
+
+  void addTask(const LogTask& task) {
+    std::lock_guard<std::mutex> lock(queueMutex);
+    tasks.push(task);
+    condition.notify_one();
+  }
+
+  void printInLog(LogTask task) {
+    try {
+      Logger::log(task.message, task.level);
+    } catch (const std::ios_base::failure& e) {
+      std::cerr << "ошибка записи в лог: " << e.what() << std::endl;
+    } catch (const std::exception& e) {
+      std::cerr << "обожемой! Какая-то ошибка: " << e.what() << std::endl;
+    }
+  }
+
+ private:
+  std::queue<LogTask> tasks;
+  std::mutex queueMutex;
+  std::condition_variable condition;
+  std::thread workerThread;
+  std::atomic<bool> running;
+
+  void process() {
+    while (running) {
+      LogTask task;
+      {
+        std::unique_lock<std::mutex> lock(queueMutex);
+        while (tasks.empty() && running) {
+          condition.wait(lock);
         }
-    }
-    
-    void addTask(const LogTask& task) {
-        std::lock_guard<std::mutex> lock(queueMutex);
-
-        // добавление задачи в очередь
-        tasks.push(task);
-
-        // будим поток-обработчик
-        cv.notify_one();
-    }
-    
-private:
-    // очередь задач
-    std::queue<LogTask> tasks;
-    // защищает очередь от гонки задач
-    std::mutex queueMutex;
-    // сигнализирует о новых задачах
-    std::condition_variable cv;
-    // фоновый поток-обработчик
-    std::thread workerThread;
-    // флаг работы потока
-    std::atomic<bool> running;
-    
-    // основной цикл обработки
-    void process() {
-        while (running) {
-            LogTask task;
-            {
-                // ожидаем задач или остановки
-                std::unique_lock<std::mutex> lock(queueMutex);
-
-                // блокирует поток, пока нет задачи
-                cv.wait(lock, [this]() { return !tasks.empty() || !running; });
-
-                if (!running) {
-                    while (!tasks.empty()) {
-                        task = tasks.front();
-                        tasks.pop();
-                        lock.unlock();
-                        try {
-                            Logger::log(task.message, task.level);
-                        } catch (const std::ios_base::failure& e) {
-                            std::cerr << "ошибка записи в лог: " << e.what() << std::endl;
-                        } catch (const std::exception& e) {
-                            std::cerr << "обожемой! Какая-то ошибка: " << e.what() << std::endl;
-                        }
-                        lock.lock();
-                    }
-                    return;
-                }
-                task = tasks.front();
-                tasks.pop();
-                
-                /*if (!running && tasks.empty()) {
-                    return;
-                }
-                
-                // извлекаем задачу
-                if (!tasks.empty()) {
-                    task = tasks.front();
-                    tasks.pop();
-                }*/
-            }
-            // Logger::log(task.message, task.level);
-            try {
-                Logger::log(task.message, task.level);
-            } catch (const std::ios_base::failure& e) {
-                std::cerr << "ошибка записи в лог: " << e.what() << std::endl;
-            } catch (const std::exception& e) {
-                std::cerr << "обожемой! Какая-то ошибка: " << e.what() << std::endl;
-            }
-            // записываем в лог (уже без блокировки)
-            /*if (!task.message.empty()) {
-                try {
-                    Logger::log(task.message, task.level);
-                } catch (const std::exception& e) {
-                    std::cerr << "ошибка логирования: " << e.what() << std::endl;
-                }
-            }*/
+        if (!running) {
+          while (!tasks.empty()) {
+            task = tasks.front();
+            tasks.pop();
+            lock.unlock();
+            printInLog(task);
+            lock.lock();
+          }
+          return;
         }
+        task = tasks.front();
+        tasks.pop();
+      }
+      printInLog(task);
     }
+  }
 };
 
-// LogLevel parseLogLevel(const std::string& levelStr, LogLevel defaultLevel) {
 LogLevel parseLogLevel(const std::string& levelStr) {
-    if (levelStr == "DEBUG") return LogLevel::DEBUG;
-    if (levelStr == "INFO") return LogLevel::INFO;
-    if (levelStr == "WARNING") return LogLevel::WARNING;
-    if (levelStr == "ERROR") return LogLevel::ERROR;
-    throw std::invalid_argument("некорректный уровень логирования: " + levelStr);
-    // return defaultLevel;
-    // return LogLevel::INFO; // По умолчанию
+  if (levelStr == "DEBUG")
+    return LogLevel::DEBUG;
+  else if (levelStr == "INFO")
+    return LogLevel::INFO;
+  else if (levelStr == "ERROR")
+    return LogLevel::ERROR;
+  throw std::invalid_argument("некорректный уровень логирования: " + levelStr);
 }
 
 void printHelp() {
-    std::cout << "Доступные команды:\n"
-              << "  message [LEVEL] - уровень логирования (DEBUG, INFO, WARNING, ERROR)\n"
-              << "  getlevel - узнать текущий уровень логирования\n"
-              << "  setlevel [LEVEL] - изменение уровня логирования\n"
-              << "  help - показать эту помощь\n"
-              << "  exit - выйти из приложения\n";
+  std::cout << "Доступные команды:\n"
+            << "  message [LEVEL] - уровень логирования (DEBUG, INFO, ERROR)\n"
+            << "  getlevel - узнать текущий уровень логирования\n"
+            << "  setlevel [LEVEL] - изменение уровня логирования\n"
+            << "  help - показать эту помощь\n"
+            << "  exit - выйти из приложения\n";
 }
 
-std::string trimLeft(const std::string& str) {
-    size_t start = str.find_first_not_of(" \t\n\r\f\v");
-    std::string result;
-    if (start == std::string::npos) {
-        result = "";
-    } else {
-        result = str.substr(start);
-    }
-    return result;
+void trimLeft(std::string& str) {
+  auto start = str.find_first_not_of(" \t\n\r\f\v\u00A0");
+  if (start != std::string::npos) {
+    str.erase(0, start);
+  } else {
+    str.clear();
+  }
 }
 
-/*std::string commandNormalizer(const std::string& input) {
-    std::string cmd = input.substr(0, input.find(' '));
-    std::transform(cmd.begin(), cmd.end(), cmd.begin(), ::tolower);
-    return cmd;
-}*/
+void trimRight(std::string& str) {
+  auto end = str.find_last_not_of(" \t\n\r\f\v\u00A0");
+  if (end != std::string::npos) {
+    str.resize(end + 1);
+  } else {
+    str.clear();
+  }
+}
+
+std::string fullTrim(const std::string& str) {
+  std::string trimed = str;
+  trimLeft(trimed);
+  trimRight(trimed);
+  return trimed;
+}
 
 int main(int argc, char* argv[]) {
+  if (argc != 3) {
+    std::cerr << "Использование: " << argv[0] << " <файл_журнала> <уровень>\n"
+              << "Уровни: DEBUG, INFO, ERROR\n";
+    return 1;
+  }
+  std::string logFile = argv[1];
+  try {
+    LogLevel defaultLevel = parseLogLevel(argv[2]);
+    Logger::init(logFile, defaultLevel);
+  } catch (const std::exception& e) {
+    std::cerr << "Ошибка: " << e.what() << std::endl;
+    std::cerr << "Допустимые уровни: DEBUG, INFO, ERROR." << std::endl;
+    return 1;
+  }
+  LogWorker worker;
+  std::cout << "Логер инициализирован. Напечатай 'help' для обзора команд.\n";
 
-    if (argc != 3) { 
-        std::cerr << "Использование: " << argv[0] << " <файл_журнала> <уровень>\n"
-                  << "Уровни: DEBUG, INFO, WARNING, ERROR\n";
-        return 1;
-    }
-    
-    std::string logFile = argv[1];
-    try {
-        LogLevel defaultLevel = parseLogLevel(argv[2]);
-        Logger::init(logFile, defaultLevel);
-    } catch (const std::exception& e) {
-        std::cerr << "Ошибка: " << e.what() << std::endl;
-        std::cerr << "Допустимые уровни: DEBUG, INFO, WARNING, ERROR." << std::endl;
-        return 1;
-    }
-    
-    LogWorker worker;
-    std::cout << "Логер инициализирован. Напечатай 'help' для обзора команд.\n";
-    
-    // std::string prePreInput;
-    std::string preInput;
-    std::string input;
-    while (true) {
-        std::cout << "> ";
+  std::string preInput;
+  std::string input;
+  while (true) {
+    std::cout << "> ";
+    std::getline(std::cin, input);
+    trimLeft(input);
+    trimRight(input);
+    if (input.empty()) {
+      continue;
+    } else if (input == "exit") {
+      break;
+    } else if (input == "help") {
+      printHelp();
+      continue;
+    } else if (input == "getlevel") {
+      std::cout << "уровень логирования: " << Logger::getCurrentLevelString()
+                << std::endl;
+    } else if (input.rfind("setlevel", 0) == 0) {
+      try {
+        std::string preLevelStr = input.substr(8);
+        std::string levelStr = fullTrim(preLevelStr);
 
-        // std::getline(std::cin, input);
-        std::getline(std::cin, preInput);
-        // std::getline(std::cin, prePreInput);
-        input = trimLeft(preInput);
-        // preInput = trimLeft(prePreInput);
-        // input = commandNormalizer(preInput);
-
-        if (input.empty()) {
-            continue;
-        }        
-        else if (input == "exit") {        
-            break;
-        }        
-        else if (input == "help") {
-            printHelp();
-            continue;
+        if (levelStr.empty()) {
+          throw std::invalid_argument("Не указан уровень логирования.");
         }
-        else if (input.rfind("getlevel", 0) == 0) {
-            std::cout   << "уровень логирования: " 
-                        << Logger::getCurrentLevelString() 
-                        << std::endl;
-        }        
-        else if (input.rfind("setlevel ", 0) == 0) {
+        LogLevel newLevel = parseLogLevel(levelStr);
+        Logger::setLogLevel(newLevel);
+        std::cout << "уровень логирования установлен: " << levelStr
+                  << std::endl;
+      } catch (const std::exception& e) {
+        std::cerr << "ошибка: " << e.what() << std::endl;
+      }
+      continue;
+    } else if (input.find("message") != std::string::npos) {
+      size_t msg_pos = input.find("message");
+      std::string otherPartOfInput = input.substr(msg_pos + 7);
+      std::replace(otherPartOfInput.begin(), otherPartOfInput.end(), '\t', ' ');
 
-            try {
-                std::string levelStr = input.substr(9);
-                LogLevel newLevel = parseLogLevel(levelStr);
-                Logger::setLogLevel(newLevel);
-                std::cout << "уровень логирования установлен: " << levelStr << std::endl;
-            } catch (const std::exception& e) {
-                std::cerr << "ошибка: " << e.what() << std::endl;
-            }
-            continue;
-        }        
-        else if (input.rfind("message ", 0) == 0) {
-            std::string rest = input.substr(8);
-            size_t spacePos = rest.find(' ');            
+      trimLeft(otherPartOfInput);
+      size_t firstSpacePosition = otherPartOfInput.find(' ');
 
-            LogTask task;
-            if (spacePos != std::string::npos) {
-                // если уровень не указан
-                std::string levelStr = rest.substr(0, spacePos);
-                try {
-                    task.level = parseLogLevel(levelStr);
-                    task.message = rest.substr(spacePos + 1);
-                } catch (...) {
-                    // если уровень не корректен, то используем текущий
-                    task.level = Logger::getCurrentLevel();
-                    // всё сообщение
-                    task.message = rest;
-                }
-            } else {
-                // если уровень не указан, то используем текущий
-                task.level = Logger::getCurrentLevel();
-                task.message = rest;                
-            }
+      LogTask task;
+      if (firstSpacePosition != std::string::npos) {
+        std::string levelStr = otherPartOfInput.substr(0, firstSpacePosition);
+        trimRight(levelStr);
 
-            worker.addTask(task);
-
-            if (task.level < Logger::getCurrentLevel()) {
-                std::cout   << "попытка добавить сообщение (уровень = ";
-            } else {
-                std::cout   << "добавлено сообщение (уровень = ";
-            }
-            std::cout << Logger::levelToStringSafe(task.level) << ")" << std::endl;
+        try {
+          task.level = parseLogLevel(levelStr);
+          task.message = otherPartOfInput.substr(firstSpacePosition + 1);
+          trimLeft(task.message);
+        } catch (...) {
+          task.level = Logger::getCurrentLevel();
+          task.message = otherPartOfInput;
         }
-        else {
-            std::cout << "Неизвестная команда. Напечатай 'help' для обзора команд." << std::endl;
-        }       
-        // std::cout << "Напечатай 'help' для обзора команд.\n";
+      } else {
+        task.level = Logger::getCurrentLevel();
+        task.message = otherPartOfInput;
+      }
+      worker.addTask(task);
+      if (task.level < Logger::getCurrentLevel()) {
+        std::cout << "попытка добавить сообщение (уровень = ";
+      } else {
+        std::cout << "добавлено сообщение (уровень = ";
+      }
+      std::cout << Logger::levelToString(task.level) << ")" << std::endl;
+    } else {
+      std::cout << "Неизвестная команда. Напечатай 'help' для обзора команд."
+                << std::endl;
     }
-    Logger::shutdown();
-
-    return 0;
+  }
+  Logger::shutdown();
+  return 0;
 }
