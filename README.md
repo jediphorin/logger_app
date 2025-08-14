@@ -1,8 +1,10 @@
 Писалось на macos, но должно успешно проходить и на linux.
+Билд приложения logger_app уже в папке build.
+
+"make clean" - удаляет папку build  ;
 
 "make" - создаёт приложение build/logger_app    ;
 
-"make clean" - удаляет папку build  ;
 
 <br><br><br>
 

@@ -6,7 +6,7 @@ std::ofstream Logger::logFile;
 LogLevel Logger::currentLevel = LogLevel::INFO;
 std::mutex Logger::logMutex;
 
-void Logger::init(const std::string& filename, LogLevel defaultLevel) {
+void Logger::init(const std::string &filename, LogLevel defaultLevel) {
   std::lock_guard<std::mutex> lock(logMutex);
   currentLevel = defaultLevel;
   logFile.open(filename, std::ios::out | std::ios::app);
@@ -21,7 +21,7 @@ void Logger::setLogLevel(LogLevel level) {
   currentLevel = level;
 }
 
-void Logger::log(const std::string& message, LogLevel level) {
+void Logger::log(const std::string &message, LogLevel level) {
   std::lock_guard<std::mutex> lock(logMutex);
   if (level < currentLevel || !logFile.is_open()) {
     return;
@@ -48,16 +48,16 @@ std::string Logger::getCurrentLevelString() {
 
 std::string Logger::levelStringConverter(LogLevel level) {
   switch (level) {
-    case LogLevel::DEBUG:
-      return "DEBUG";
-    case LogLevel::INFO:
-      return "INFO";
-    case LogLevel::ERROR:
-      return "ERROR";
-    default:
-      std::cerr << "неизвестный уровень логирования: "
-                << static_cast<int>(level) << std::endl;
-      return "UNKNOWN";
+  case LogLevel::DEBUG:
+    return "DEBUG";
+  case LogLevel::INFO:
+    return "INFO";
+  case LogLevel::ERROR:
+    return "ERROR";
+  default:
+    std::cerr << "неизвестный уровень логирования: " << static_cast<int>(level)
+              << std::endl;
+    return "UNKNOWN";
   }
 }
 

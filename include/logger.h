@@ -10,6 +10,7 @@
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <algorithm>
 
 enum class LogLevel { DEBUG, INFO, ERROR };
 

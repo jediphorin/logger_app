@@ -13,7 +13,7 @@ struct LogTask {
 };
 
 class LogWorker {
- public:
+public:
   LogWorker() : running(true) {
     workerThread = std::thread(&LogWorker::process, this);
   }
@@ -26,7 +26,7 @@ class LogWorker {
     }
   }
 
-  void addTask(const LogTask& task) {
+  void addTask(const LogTask &task) {
     std::lock_guard<std::mutex> lock(queueMutex);
     tasks.push(task);
     condition.notify_one();
@@ -35,14 +35,14 @@ class LogWorker {
   void printInLog(LogTask task) {
     try {
       Logger::log(task.message, task.level);
-    } catch (const std::ios_base::failure& e) {
+    } catch (const std::ios_base::failure &e) {
       std::cerr << "ошибка записи в лог: " << e.what() << std::endl;
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
       std::cerr << "обожемой! Какая-то ошибка: " << e.what() << std::endl;
     }
   }
 
- private:
+private:
   std::queue<LogTask> tasks;
   std::mutex queueMutex;
   std::condition_variable condition;
@@ -75,7 +75,7 @@ class LogWorker {
   }
 };
 
-LogLevel parseLogLevel(const std::string& levelStr) {
+LogLevel parseLogLevel(const std::string &levelStr) {
   if (levelStr == "DEBUG")
     return LogLevel::DEBUG;
   else if (levelStr == "INFO")
@@ -94,7 +94,7 @@ void printHelp() {
             << "  exit - выйти из приложения\n";
 }
 
-void trimLeft(std::string& str) {
+void trimLeft(std::string &str) {
   auto start = str.find_first_not_of(" \t\n\r\f\v\u00A0");
   if (start != std::string::npos) {
     str.erase(0, start);
@@ -103,7 +103,7 @@ void trimLeft(std::string& str) {
   }
 }
 
-void trimRight(std::string& str) {
+void trimRight(std::string &str) {
   auto end = str.find_last_not_of(" \t\n\r\f\v\u00A0");
   if (end != std::string::npos) {
     str.resize(end + 1);
@@ -112,14 +112,14 @@ void trimRight(std::string& str) {
   }
 }
 
-std::string fullTrim(const std::string& str) {
+std::string fullTrim(const std::string &str) {
   std::string trimed = str;
   trimLeft(trimed);
   trimRight(trimed);
   return trimed;
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   if (argc != 3) {
     std::cerr << "Использование: " << argv[0] << " <файл_журнала> <уровень>\n"
               << "Уровни: DEBUG, INFO, ERROR\n";
@@ -129,7 +129,7 @@ int main(int argc, char* argv[]) {
   try {
     LogLevel defaultLevel = parseLogLevel(argv[2]);
     Logger::init(logFile, defaultLevel);
-  } catch (const std::exception& e) {
+  } catch (const std::exception &e) {
     std::cerr << "Ошибка: " << e.what() << std::endl;
     std::cerr << "Допустимые уровни: DEBUG, INFO, ERROR." << std::endl;
     return 1;
@@ -141,7 +141,17 @@ int main(int argc, char* argv[]) {
   std::string input;
   while (true) {
     std::cout << "> ";
-    std::getline(std::cin, input);
+    //
+    if (!std::getline(std::cin, input)) {
+      if (std::cin.eof()) {
+        std::cout << "\nEOF (Ctrl+D)" << std::endl;
+        break;
+      }
+      std::cerr << "Input error" << std::endl;
+      std::cin.clear();
+      continue;
+    }
+    //    std::getline(std::cin, input);
     trimLeft(input);
     trimRight(input);
     if (input.empty()) {
@@ -166,7 +176,7 @@ int main(int argc, char* argv[]) {
         Logger::setLogLevel(newLevel);
         std::cout << "уровень логирования установлен: " << levelStr
                   << std::endl;
-      } catch (const std::exception& e) {
+      } catch (const std::exception &e) {
         std::cerr << "ошибка: " << e.what() << std::endl;
       }
       continue;
