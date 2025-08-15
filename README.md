@@ -1,10 +1,8 @@
-Писалось на macos, но должно успешно проходить и на linux.
-Билд приложения logger_app уже в папке build.
+UPD: дописывалось на ubuntu 20.04 server, писалось на macos.
 
 "make clean" - удаляет папку build  ;
 
 "make" - создаёт приложение build/logger_app    ;
-
 
 <br><br><br>
 
